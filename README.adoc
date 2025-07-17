@@ -1,0 +1,122 @@
+= CMake project structure
+In the article before, we create a library and an executable, however both are placed on the same directory, but we can do better than that
+
+:toc:
+:sectnums:
+
+:imagesdir: ./assets/images/
+
+== Introduction
+
+So if we take a look at the folder before that one, we can see that the sources used to make a library are in the same place than the one used to make the executable.
+
+NOTE: What we can do is creating a new folder named `src` that contains all the sources of the library
+
+image::directory-structure.png[]
+
+But you can also do it in another way, I usually do it another way than this one, although even if I kept this separation between app and my_lib, I used to do something more like this:
+
+image::directory-structure-modified.png[]
+
+NOTE: If we take into account the size of the `my_lib`, you may be thinking like there is no need to do something like this, however, what if we decide to add more features onto it ?
+
+WARNING: However, now that we decide the directory structure like we did, we will have to tell CMake about it
+
+== Telling CMake about changes
+As we decide to change the directory structure, now we will be able to tell CMake about it, because right now, those commands won't be able to see the files:
+
+```cmake
+add_library(Library STATIC my_lib.cpp)
+add_executable(executable ./main.cpp)
+```
+
+CMake can't find the specified files in the directory where it lies. So you will have to specify the path where the files are lying:
+
+```cmake
+add_library(Library STATIC my_lib/src/my_lib.cpp)
+add_executable(executable app/src/main.cpp)
+```
+
+Now, after those changes, we'll be able to rebuild the entire project using the followings commands:
+
+```sh
+$ cmake -S . -B build -G "Unix Makefiles"
+```
+
+the build has been done, and it works, now if we build the project using this command:
+
+```sh
+$ cmake --build ./build
+```
+
+An error will be present:
+
+image::cannot-find-lib.png[]
+
+That's because we didn't tell our project where to look for the headers files. So how do we do that ?
+
+=== Telling CMake to search the include
+In order to tell CMake where the includes are located at, we have 2 options, however I've always use the same since my beggining as a software developper which is:
+
+```cmake
+target_include_directories(Library PUBLIC my_lib/include/)
+target_include_directories(executable PUBLIC app/include/)
+```
+
+Both command `target_include_directories` are adding the include directories to the target.
+
+So here is the final `CMakeLists.txt` file:
+```cmake
+cmake_minimum_required(VERSION 3.28)
+
+project(CppProjectTemplate
+        VERSION 0.0.1
+        LANGUAGES C CXX)
+
+add_library(Library STATIC my_lib/src/my_lib.cpp)
+add_executable(executable app/src/main.cpp)
+
+target_include_directories(Library PUBLIC my_lib/include/)
+target_include_directories(executable PUBLIC app/include/)
+target_link_libraries(executable PUBLIC Library)
+```
+
+NOTE: Something to not though, is that it's not a good practice is to have a CMake at each directories where you have source and header files.
+
+=== Create a subdirectory
+As of now, we just have only one `CMakeLists.txt` file that lists all the targets that needs to be built, although it works, alright, but what if we add more target / subdirectories ? It's gonna be messy very fast ! One thing to do is by creating subdirectory.
+
+==== Create CMake subdirectory
+Take the folder `app` and `my_lib` we have, we can create then two `CMakeLists.txt` inside, because each directories (`app` and `my_lib` are compilation unit by theirselves)
+
+image::cutting-cmake-into-subdir.png[]
+
+The content of the two `CMakeLists.txt` files we just create on each compilation units are just that:
+
+===== app/CMakeLists.txt
+```cmake
+add_executable(Executable ./src/main.cpp)
+target_link_libraries(executable PUBLIC Library)
+target_include_directories(executable PUBLIC ./include/)
+```
+
+===== my_lib/CMakeLists.txt
+```cmake
+add_library(Library STATIC ./src/my_lib.cpp)
+target_include_directories(Library PUBLIC ./include/)
+```
+
+Alright, so now we have cut the default `CMake` we had before into smaller `CMakeLists.txt`, but, does CMake know that we make this change ? Absolutely not ! So we'll have to tell him like:
+
+```cmake
+cmake_minimum_required(VERSION 3.28)
+
+project(CppProjectTemplate
+        VERSION 0.0.1
+        LANGUAGES C CXX)
+
+add_subdirectory(my_lib/)
+add_subdirectory(app/)
+```
+
+WARNING: As we are linking the library against the app itself, you have to tell CMake to build first the library and then the application.
